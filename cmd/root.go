@@ -150,7 +150,6 @@ var editCmd = &cobra.Command{
 			fmt.Println("Selection canceled.")
 			return
 		}
-		fmt.Println(taskID)
 
 		// Find the task by ID
 		var selectedTask task.Task
