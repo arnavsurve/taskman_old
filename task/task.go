@@ -1,65 +1,73 @@
 package task
 
-import "fmt"
+import (
+	"database/sql"
+	_ "github.com/mattn/go-sqlite3"
+	"log"
+	"time"
+)
 
-// TaskStatus holds the completion status of a task
+// TaskStatus represents the status of a task
 type TaskStatus string
 
 const (
 	TODO        TaskStatus = "TODO"
-	IN_PROGRESS TaskStatus = "IN_PROGRESS"
-	DONE        TaskStatus = "DONE"
+	IN_PROGRESS            = "IN_PROGRESS"
+	DONE                   = "DONE"
 )
 
-// Task represents a task with respective properties
+// Task represents a task with an ID, name, description, and status.
 type Task struct {
-	ID          int
-	Name        string
-	Description string
-	Status      TaskStatus
+	ID      int
+	Name    string
+	DueDate time.Time
+	Status  TaskStatus
 }
 
-// TaskManager managers a list of tasks
-type TaskManager struct {
-	Tasks  []Task
-	NextID int
+// InitializeDatabase initializes the tasks table if it does not already exist
+func InitializeDatabase(db *sql.DB) error {
+	query := `
+    CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        due_date DATETIME,
+        status TEXT
+    );`
+	_, err := db.Exec(query)
+	return err
 }
 
-// NewTaskManager initializes a new TaskManager instance
-func NewTaskManager() *TaskManager {
-	return &TaskManager{
-		Tasks:  []Task{},
-		NextID: 1,
+// AddTask adds a new task to the database
+func AddTask(db *sql.DB, name string, date time.Time) error {
+	query := "INSERT INTO tasks (name, due_date, status) VALUES (?, ?, ?)"
+	_, err := db.Exec(query, name, date, TODO)
+	return err
+}
+
+// ListTasks lists all tasks in the database
+func ListTasks(db *sql.DB) ([]Task, error) {
+	query := "SELECT id, name, due_date, status FROM tasks"
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
 	}
-}
+	defer rows.Close()
 
-// AddTask adds a new task to TaskManager
-func (tm *TaskManager) AddTask(name string, desc string) {
-	task := Task{
-		ID:          tm.NextID,
-		Name:        name,
-		Description: desc,
-		Status:      TODO,
-	}
-	tm.Tasks = append(tm.Tasks, task)
-	tm.NextID++
-}
-
-// ListTasks lists all tasks in a TaskManager instance
-func (tm *TaskManager) ListTasks() []Task {
-	return tm.Tasks
-}
-
-// UpdateTaskStatus updates the completion status of a task
-func (tm *TaskManager) UpdateTaskStatus(id int, status TaskStatus) bool {
-	for i, task := range tm.Tasks {
-		if len(tm.Tasks) == 0 {
-			fmt.Println("No tasks found.")
+	var tasks []Task
+	for rows.Next() {
+		var task Task
+		err := rows.Scan(&task.ID, &task.Name, &task.DueDate, &task.Status)
+		if err != nil {
+			log.Fatal(err)
 		}
-		if task.ID == id {
-			tm.Tasks[i].Status = status
-			return true
-		}
+		tasks = append(tasks, task)
 	}
-	return false
+	return tasks, nil
+}
+
+// UpdateTask updates the state of a task in the database
+func UpdateTask(db *sql.DB, id int, name string, date time.Time, status TaskStatus) error {
+	query := "UPDATE tasks SET name = ?, status = ?, due_date = ? WHERE id = ?"
+	_, err := db.Exec(query, name, status, date, id)
+	return err
 }
